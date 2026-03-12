@@ -163,7 +163,7 @@ class ValleyProvider extends ChangeNotifier {
       final lastUpdate = _lastUpdateTime[id];
       if (lastUpdate != null) {
         final diff = now.difference(lastUpdate).inSeconds;
-        if (diff > 30 && device.isOnline) {
+        if (diff > 15 && device.isOnline) {
           _devices[id] = device.copyWith(isOnline: false);
           hasChanges = true;
         }

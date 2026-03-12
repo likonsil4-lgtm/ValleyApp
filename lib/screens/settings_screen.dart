@@ -353,7 +353,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               controller: _rotationTimeController,
               label: 'Время оборота',
               hint: 'Например: 74',
-              unit: 'мин',
+              unit: 'час(ов)',
               icon: Icons.timer,
               min: 1,
               max: 200,
@@ -439,7 +439,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
           const SizedBox(height: 4),
           Text(
-            'Диапазон: ${min.toStringAsFixed(0)} - ${max.toStringAsFixed(0)} $unit',
+            'Диапазон: ${min.toStringAsFixed(1)} - ${max.toStringAsFixed(1)} $unit',
             style: TextStyle(
               fontSize: 11,
               color: _isDarkTheme ? Colors.white.withOpacity(0.4) : Colors.black38,
