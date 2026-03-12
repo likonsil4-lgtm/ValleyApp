@@ -5,6 +5,7 @@ import '../widgets/valley_card.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
 import '../models/valley_device.dart';
+import 'dart:async';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -16,6 +17,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _isDarkTheme = true;
   late AnimationController _fabController;
+
+  // Для двойного нажатия назад
+  bool _backPressedOnce = false;
+  Timer? _backPressTimer;
+  bool _showExitToast = false;
 
   @override
   void initState() {
@@ -36,88 +42,159 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Theme(
       data: _isDarkTheme ? _darkTheme : _lightTheme,
-      child: Scaffold(
-        extendBodyBehindAppBar: true,
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: _isDarkTheme
-                  ? [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)]
-                  : [const Color(0xFFf5f7fa), const Color(0xFFc3cfe2)],
-            ),
-          ),
-          child: SafeArea(
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                // Animated App Bar
-                SliverToBoxAdapter(
-                  child: _buildHeader(),
+      child: WillPopScope(
+        onWillPop: _onWillPop,
+        child: Scaffold(
+          extendBodyBehindAppBar: true,
+          body: Stack(
+            children: [
+              // Основной контент
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: _isDarkTheme
+                        ? [const Color(0xFF0F2027), const Color(0xFF203A43), const Color(0xFF2C5364)]
+                        : [const Color(0xFFf5f7fa), const Color(0xFFc3cfe2)],
+                  ),
                 ),
-
-                // Connection Status
-                SliverToBoxAdapter(
-                  child: _buildConnectionStatus(),
-                ),
-
-                // Devices Grid
-                SliverPadding(
-                  padding: const EdgeInsets.all(16),
-                  sliver: Consumer<ValleyProvider>(
-                    builder: (context, provider, child) {
-                      final devices = provider.devices;
-                      final onlineCount = devices.where((d) => d.isOnline).length;
-
-                      return SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                            return AnimatedBuilder(
-                              animation: _fabController,
-                              builder: (context, child) {
-                                return TweenAnimationBuilder<double>(
-                                  tween: Tween(begin: 0.0, end: 1.0),
-                                  duration: Duration(milliseconds: 400 + (index * 100)),
-                                  curve: Curves.easeOutCubic,
-                                  builder: (context, value, child) {
-                                    return Transform.translate(
-                                      offset: Offset(0, 50 * (1 - value)),
-                                      child: Opacity(
-                                        opacity: value,
-                                        child: child,
-                                      ),
-                                    );
-                                  },
-                                  child: Padding(
-                                    padding: const EdgeInsets.only(bottom: 16),
-                                    child: ValleyCard(
-                                      device: devices[index],
-                                      isDarkTheme: _isDarkTheme,
-                                    ),
-                                  ),
-                                );
-                              },
+                child: SafeArea(
+                  child: CustomScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    slivers: [
+                      SliverToBoxAdapter(child: _buildHeader()),
+                      SliverToBoxAdapter(child: _buildConnectionStatus()),
+                      SliverPadding(
+                        padding: const EdgeInsets.all(16),
+                        sliver: Consumer<ValleyProvider>(
+                          builder: (context, provider, child) {
+                            final devices = provider.devices;
+                            return SliverList(
+                              delegate: SliverChildBuilderDelegate(
+                                    (context, index) {
+                                  return AnimatedBuilder(
+                                    animation: _fabController,
+                                    builder: (context, child) {
+                                      return TweenAnimationBuilder<double>(
+                                        tween: Tween(begin: 0.0, end: 1.0),
+                                        duration: Duration(milliseconds: 400 + (index * 100)),
+                                        curve: Curves.easeOutCubic,
+                                        builder: (context, value, child) {
+                                          return Transform.translate(
+                                            offset: Offset(0, 50 * (1 - value)),
+                                            child: Opacity(opacity: value, child: child),
+                                          );
+                                        },
+                                        child: Padding(
+                                          padding: const EdgeInsets.only(bottom: 16),
+                                          child: ValleyCard(
+                                            device: devices[index],
+                                            isDarkTheme: _isDarkTheme,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  );
+                                },
+                                childCount: devices.length,
+                              ),
                             );
                           },
-                          childCount: devices.length,
+                        ),
+                      ),
+                      const SliverToBoxAdapter(child: SizedBox(height: 32)),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Toast уведомление внизу
+              if (_showExitToast)
+                Positioned(
+                  bottom: 100,
+                  left: 24,
+                  right: 24,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 200),
+                    builder: (context, value, child) {
+                      return Opacity(
+                        opacity: value,
+                        child: Transform.translate(
+                          offset: Offset(0, 20 * (1 - value)),
+                          child: child,
                         ),
                       );
                     },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: _isDarkTheme
+                            ? Colors.white.withOpacity(0.15)
+                            : Colors.black.withOpacity(0.7),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.2),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.exit_to_app,
+                            color: Colors.white.withOpacity(0.9),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Нажмите ещё раз для выхода',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.9),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-
-                // Bottom spacing
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 32),
-                ),
-              ],
-            ),
+            ],
           ),
+          floatingActionButton: _buildFloatingMenu(),
         ),
-        floatingActionButton: _buildFloatingMenu(),
       ),
     );
+  }
+
+  Future<bool> _onWillPop() async {
+    if (_backPressedOnce) {
+      // Второе нажатие - выходим
+      _backPressTimer?.cancel();
+      return true; // Разрешаем выход
+    }
+
+    // Первое нажатие - показываем уведомление
+    setState(() {
+      _backPressedOnce = true;
+      _showExitToast = true;
+    });
+
+    // Таймер на 2 секунды для сброса
+    _backPressTimer?.cancel();
+    _backPressTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() {
+          _backPressedOnce = false;
+          _showExitToast = false;
+        });
+      }
+    });
+
+    // Не выходим
+    return false;
   }
 
   Widget _buildHeader() {

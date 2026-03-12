@@ -45,6 +45,7 @@ class ValleyDevice {
   factory ValleyDevice.fromJson(Map<String, dynamic> json) => ValleyDevice(
     id: json['id'],
     name: json['name'],
+    isOnline: false,
     startAngle: json['startAngle'] ?? 220.0,
     rotationTimeMinutes: json['rotationTimeMinutes'] ?? 74.0,
   );
