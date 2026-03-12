@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:math';
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
-import 'dart:math';
 
 class MqttService {
   static final MqttService _instance = MqttService._internal();
@@ -20,7 +19,7 @@ class MqttService {
   bool _isConnected = false;
   bool get isConnected => _isConnected;
 
-  Timer? _pingTimer;
+  Timer? _keepAliveTimer;
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
   static const int _maxReconnectAttempts = 10;
@@ -46,8 +45,8 @@ class MqttService {
 
       _client.secure = true;
       _client.logging(on: false);
-      _client.keepAlivePeriod = 60; // Увеличено до 60 секунд
-      _client.autoReconnect = true; // Включен авто-реконнект
+      _client.keepAlivePeriod = 30; // 30 секунд keepalive
+      _client.autoReconnect = true;
       _client.resubscribeOnAutoReconnect = true;
       _client.onDisconnected = _onDisconnected;
       _client.onConnected = _onConnected;
@@ -96,14 +95,6 @@ class MqttService {
         'timestamp': DateTime.now().millisecondsSinceEpoch,
       });
     });
-
-    // Пинг каждые 20 секунд для поддержания соединения
-    _pingTimer?.cancel();
-    _pingTimer = Timer.periodic(const Duration(seconds: 20), (_) {
-      if (_isConnected) {
-        _client.ping();
-      }
-    });
   }
 
   void _onConnected() {
@@ -112,13 +103,22 @@ class MqttService {
     _reconnectAttempts = 0;
     _connectionController.add(true);
     _subscribeToTopics();
+
+    // Отправляем keepalive сообщения каждые 20 секунд
+    _keepAliveTimer?.cancel();
+    _keepAliveTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      if (_isConnected) {
+        // Отправляем пустое сообщение на топик keepalive
+        publish('app/keepalive', DateTime.now().toIso8601String(), retain: false);
+      }
+    });
   }
 
   void _onDisconnected() {
     print('MQTT: Disconnected');
     _isConnected = false;
     _connectionController.add(false);
-    _pingTimer?.cancel();
+    _keepAliveTimer?.cancel();
     _scheduleReconnect();
   }
 
@@ -185,7 +185,7 @@ class MqttService {
 
   void disconnect() {
     _reconnectTimer?.cancel();
-    _pingTimer?.cancel();
+    _keepAliveTimer?.cancel();
     _client.disconnect();
     _isConnected = false;
   }
