@@ -20,6 +20,7 @@ class _ValleyDetailScreenState extends State<ValleyDetailScreen>
   bool _isDarkTheme = true;
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
+  late final Color color = _isDarkTheme ? Colors.cyanAccent : Colors.deepPurple;
 
   @override
   void initState() {
@@ -212,6 +213,9 @@ class _ValleyDetailScreenState extends State<ValleyDetailScreen>
   }
 
   Widget _buildPositionIndicator(ValleyDevice device) {
+    // Выбор картинки по ID
+    final String imagePath = _getImageForDevice(device.id);
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -242,19 +246,80 @@ class _ValleyDetailScreenState extends State<ValleyDetailScreen>
           ),
           const SizedBox(height: 20),
           SizedBox(
-            width: 200,
-            height: 200,
-            child: CustomPaint(
-              painter: _PositionPainter(
-                angle: device.currentAngle,
-                isDarkTheme: _isDarkTheme,
-                color: device.isOnline
-                    ? (_isDarkTheme ? Colors.cyanAccent : Colors.deepPurple)
-                    : Colors.grey,
-              ),
+            width: 220,
+            height: 220,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // 1. Картинка в зависимости от ID
+                ClipOval(
+                  child: Image.asset(
+                    imagePath,
+                    width: 200,
+                    height: 200,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback если картинки нет
+                      return Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _getFallbackColor(device.id),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.3),
+                            width: 2,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            device.name,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.7),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+
+                // 2. Полупрозрачный оверлей
+                Container(
+                  width: 200,
+                  height: 200,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: (_isDarkTheme ? Colors.black : Colors.white)
+                        .withOpacity(0.25),
+                    border: Border.all(
+                      color: device.isOnline
+                          ? color.withOpacity(0.6)
+                          : Colors.grey.withOpacity(0.3),
+                      width: 3,
+                    ),
+                  ),
+                ),
+
+                // 3. Индикатор со стрелкой
+                SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: CustomPaint(
+                    painter: _PositionPainter(
+                      angle: device.currentAngle,
+                      isDarkTheme: _isDarkTheme,
+                      color: device.isOnline ? color : Colors.grey,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 16),
+          // Цифровое значение
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             decoration: BoxDecoration(
@@ -270,15 +335,49 @@ class _ValleyDetailScreenState extends State<ValleyDetailScreen>
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.bold,
-                color: device.isOnline
-                    ? (_isDarkTheme ? Colors.cyanAccent : Colors.deepPurple)
-                    : Colors.grey,
+                color: device.isOnline ? color : Colors.grey,
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+// Метод выбора картинки по ID
+  String _getImageForDevice(String deviceId) {
+    switch (deviceId) {
+      case 'valley_1':
+        return 'assets/images/field_1.png';
+      case 'valley_2':
+        return 'assets/images/field_2.png';
+      case 'valley_3':
+        return 'assets/images/field_3.png';
+      case 'valley_4':
+        return 'assets/images/field_4.png';
+      case 'valley_5':
+        return 'assets/images/field_5.png';
+      default:
+        return 'assets/images/field_default.png';
+    }
+  }
+
+// Цвета для fallback
+  Color _getFallbackColor(String deviceId) {
+    switch (deviceId) {
+      case 'valley_1':
+        return Colors.green.withOpacity(0.4);
+      case 'valley_2':
+        return Colors.blue.withOpacity(0.4);
+      case 'valley_3':
+        return Colors.orange.withOpacity(0.4);
+      case 'valley_4':
+        return Colors.purple.withOpacity(0.4);
+      case 'valley_5':
+        return Colors.teal.withOpacity(0.4);
+      default:
+        return Colors.grey.withOpacity(0.4);
+    }
   }
 
   Widget _buildStatusCard(ValleyDevice device) {
@@ -662,25 +761,39 @@ class _PositionPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = size.width / 2 - 10;
 
-    // Background circle
-    final bgPaint = Paint()
-      ..color = isDarkTheme ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, radius, bgPaint);
+    // Рисуем только шкалу и стрелку, фон теперь от картинки
 
-    // Outer ring
+    // Тонкий круг шкалы
     final ringPaint = Paint()
-      ..color = color.withOpacity(0.3)
+      ..color = color.withOpacity(0.4)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..strokeWidth = 1.5;
     canvas.drawCircle(center, radius, ringPaint);
 
-    // Degree markers
+    // Мелкие метки каждые 30 градусов
     final markerPaint = Paint()
-      ..color = color.withOpacity(0.5)
-      ..strokeWidth = 2;
+      ..color = color.withOpacity(0.6)
+      ..strokeWidth = 1.5;
 
     for (int i = 0; i < 360; i += 30) {
+      final radian = i * math.pi / 180;
+      final start = Offset(
+        center.dx + (radius - 8) * math.cos(radian),
+        center.dy + (radius - 8) * math.sin(radian),
+      );
+      final end = Offset(
+        center.dx + radius * math.cos(radian),
+        center.dy + radius * math.sin(radian),
+      );
+      canvas.drawLine(start, end, markerPaint);
+    }
+
+    // Крупные метки каждые 90 градусов (0, 90, 180, 270)
+    final tickPaint = Paint()
+      ..color = color.withOpacity(0.9)
+      ..strokeWidth = 2.5;
+
+    for (int i = 0; i < 360; i += 90) {
       final radian = i * math.pi / 180;
       final start = Offset(
         center.dx + (radius - 15) * math.cos(radian),
@@ -690,64 +803,80 @@ class _PositionPainter extends CustomPainter {
         center.dx + radius * math.cos(radian),
         center.dy + radius * math.sin(radian),
       );
-      canvas.drawLine(start, end, markerPaint);
-    }
-
-    // Main tick marks (every 90 degrees)
-    final tickPaint = Paint()
-      ..color = color
-      ..strokeWidth = 3;
-
-    for (int i = 0; i < 360; i += 90) {
-      final radian = i * math.pi / 180;
-      final start = Offset(
-        center.dx + (radius - 25) * math.cos(radian),
-        center.dy + (radius - 25) * math.sin(radian),
-      );
-      final end = Offset(
-        center.dx + radius * math.cos(radian),
-        center.dy + radius * math.sin(radian),
-      );
       canvas.drawLine(start, end, tickPaint);
     }
 
-    // Needle
-    final needleRadian = (angle - 90) * math.pi / 180;
-    final needleEnd = Offset(
-      center.dx + (radius - 20) * math.cos(needleRadian),
-      center.dy + (radius - 20) * math.sin(needleRadian),
+    // Подписи градусов (0, 90, 180, 270)
+    final textStyle = TextStyle(
+      color: color.withOpacity(0.8),
+      fontSize: 10,
+      fontWeight: FontWeight.bold,
     );
 
-    // Needle shadow
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+    );
+
+    final labels = ['0°', '90°', '180°', '270°'];
+    for (int i = 0; i < 4; i++) {
+      final radian = (i * 90) * math.pi / 180;
+      final offset = Offset(
+        center.dx + (radius - 25) * math.cos(radian),
+        center.dy + (radius - 25) * math.sin(radian),
+      );
+
+      textPainter.text = TextSpan(
+        text: labels[i],
+        style: textStyle,
+      );
+      textPainter.layout();
+
+      // Центрируем текст
+      final textOffset = Offset(
+        offset.dx - textPainter.width / 2,
+        offset.dy - textPainter.height / 2,
+      );
+
+      textPainter.paint(canvas, textOffset);
+    }
+
+    // Стрелка (полоска от центра)
+    final needleRadian = (angle - 90) * math.pi / 180;
+    final needleEnd = Offset(
+      center.dx + (radius - 25) * math.cos(needleRadian),
+      center.dy + (radius - 25) * math.sin(needleRadian),
+    );
+
+    // Тень стрелки
     final shadowPaint = Paint()
       ..color = color.withOpacity(0.3)
-      ..strokeWidth = 8
+      ..strokeWidth = 6
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(center, needleEnd, shadowPaint);
 
-    // Needle body
+    // Тело стрелки
     final needlePaint = Paint()
       ..color = color
-      ..strokeWidth = 4
+      ..strokeWidth = 3
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(center, needleEnd, needlePaint);
 
-    // Center dot with glow
+    // Центральная точка с glow эффектом
     final glowPaint = Paint()
       ..color = color.withOpacity(0.3)
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 15, glowPaint);
+    canvas.drawCircle(center, 12, glowPaint);
 
     final centerPaint = Paint()
       ..color = color
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 8, centerPaint);
+    canvas.drawCircle(center, 6, centerPaint);
 
-    // Inner white dot
+    // Внутренняя белая/черная точка
     final innerPaint = Paint()
       ..color = isDarkTheme ? Colors.white : Colors.black
       ..style = PaintingStyle.fill;
-    canvas.drawCircle(center, 4, innerPaint);
+    canvas.drawCircle(center, 3, innerPaint);
   }
 
   @override

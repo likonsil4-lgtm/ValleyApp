@@ -22,3 +22,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+      - assets/images/field_1.png
+      - assets/images/field_2.png
+      - assets/images/field_3.png
+      - assets/images/field_4.png
+      - assets/images/field_5.png
+      - assets/images/field_default.png
