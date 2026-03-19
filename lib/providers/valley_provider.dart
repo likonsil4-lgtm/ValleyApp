@@ -11,12 +11,8 @@ class ValleyProvider extends ChangeNotifier {
   StreamSubscription? _mqttSubscription;
   StreamSubscription? _connectionSubscription;
   Timer? _statusCheckTimer;
-  Timer? _connectionMonitorTimer;
   bool _wasConnected = false;
 
-  // КЛЮЧЕВОЕ: флаг блокировки старых сообщений
-  bool _ignoreOldMessages = true;
-  Timer? _ignoreTimer;
 
   ValleyProvider() {
     _initializeDevices();
@@ -29,9 +25,8 @@ class ValleyProvider extends ChangeNotifier {
       _devices[id] = ValleyDevice(
         id: id,
         name: 'Valley $i',
-        isOnline: false, // Явно false!
+        isOnline: false,
       );
-      // Устанавливаем время в далеком прошлом
       _lastUpdateTime[id] = DateTime(2000, 1, 1);
     }
   }
@@ -44,13 +39,6 @@ class ValleyProvider extends ChangeNotifier {
     try {
       await _mqttService.connect();
 
-      // БЛОКИРУЕМ все сообщения первые 3 секунды!
-      _ignoreOldMessages = true;
-      _ignoreTimer?.cancel();
-      _ignoreTimer = Timer(const Duration(seconds: 3), () {
-        _ignoreOldMessages = false;
-        print('MQTT: Now accepting new messages');
-      });
 
       _mqttSubscription = _mqttService.messageStream.listen(
         _handleMessage,
@@ -59,26 +47,18 @@ class ValleyProvider extends ChangeNotifier {
 
       _connectionSubscription = _mqttService.connectionStream.listen((connected) {
         if (connected && !_wasConnected) {
-          print('MQTT: Reconnected, blocking old messages for 3s...');
-          // При каждом переподключении снова блокируем!
-          _ignoreOldMessages = true;
-          _ignoreTimer?.cancel();
-          _ignoreTimer = Timer(const Duration(seconds: 3), () {
-            _ignoreOldMessages = false;
-            print('MQTT: Now accepting new messages');
-          });
+          print('MQTT: Reconnected, requesting fresh status...');
 
-          // Сбрасываем все в offline при переподключении
-          _devices.forEach((id, device) {
-            _devices[id] = device.copyWith(isOnline: false);
-            _lastUpdateTime[id] = DateTime(2000, 1, 1);
-          });
-          notifyListeners();
+          // При переподключении запрашиваем статус у всех устройств
+          for (int i = 1; i <= 5; i++) {
+            _mqttService.publish('valley/valley_$i/command', 'PING', retain: false);
+          }
         }
         _wasConnected = connected;
       });
 
-      _statusCheckTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      // Проверка статуса каждые 5 секунд (быстрее!)
+      _statusCheckTimer = Timer.periodic(const Duration(seconds: 5), (_) {
         _checkDeviceStatus();
       });
 
@@ -88,14 +68,13 @@ class ValleyProvider extends ChangeNotifier {
   }
 
   void _handleMessage(Map<String, dynamic> data) {
-    // ИГНОРИРУЕМ если флаг установлен (первые 3 сек после подключения)
-    if (_ignoreOldMessages) {
-      print('MQTT: Ignoring message (blocking period): ${data['topic']}');
-      return;
-    }
+    // УБРАНО: проверка _ignoreOldMessages - обрабатываем мгновенно!
 
     final topic = data['topic'] as String;
     final payload = data['payload'] as String;
+    final timestamp = DateTime.now();
+
+    print('MQTT: [$topic] = $payload');
 
     final parts = topic.split('/');
     if (parts.length < 3) return;
@@ -105,7 +84,7 @@ class ValleyProvider extends ChangeNotifier {
 
     if (!_devices.containsKey(deviceId)) return;
 
-    _lastUpdateTime[deviceId] = DateTime.now();
+    _lastUpdateTime[deviceId] = timestamp;
     final device = _devices[deviceId]!;
 
     switch (subtopic) {
@@ -163,9 +142,11 @@ class ValleyProvider extends ChangeNotifier {
       final lastUpdate = _lastUpdateTime[id];
       if (lastUpdate != null) {
         final diff = now.difference(lastUpdate).inSeconds;
-        if (diff > 15 && device.isOnline) {
+        // 10 секунд таймаут (быстрее!)
+        if (diff > 10 && device.isOnline) {
           _devices[id] = device.copyWith(isOnline: false);
           hasChanges = true;
+          print('Device $id marked offline (no message for ${diff}s)');
         }
       }
     });
@@ -192,8 +173,6 @@ class ValleyProvider extends ChangeNotifier {
     _mqttSubscription?.cancel();
     _connectionSubscription?.cancel();
     _statusCheckTimer?.cancel();
-    _connectionMonitorTimer?.cancel();
-    _ignoreTimer?.cancel();
     _mqttService.dispose();
     super.dispose();
   }
