@@ -158,14 +158,22 @@ class ValleyProvider extends ChangeNotifier {
     _mqttService.sendCommand(deviceId, command);
   }
 
-  void updateCalibration(String deviceId, double startAngle, double rotationTime) {
-    _mqttService.sendCalibration(deviceId, startAngle, rotationTime);
-    final device = _devices[deviceId]!;
-    _devices[deviceId] = device.copyWith(
-      startAngle: startAngle,
-      rotationTimeMinutes: rotationTime,
-    );
-    notifyListeners();
+  // valley_provider.dart
+  void updateCalibration(String deviceId, double startAngle, double rotationTimeHours) {
+    final data = jsonEncode({
+      'startAngle': startAngle,
+      'rotationTimeHours': rotationTimeHours,
+    });
+    _mqttService.publish('valley/$deviceId/calibration', data, retain: true);
+
+    final device = _devices[deviceId];
+    if (device != null) {
+      _devices[deviceId] = device.copyWith(
+        startAngle: startAngle,
+        rotationTimeMinutes: rotationTimeHours, // или создай rotationTimeHours
+      );
+      notifyListeners();
+    }
   }
 
   @override
