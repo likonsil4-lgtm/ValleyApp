@@ -30,6 +30,7 @@ flutter:
       - assets/images/field_4.png
       - assets/images/field_5.png
       - assets/images/field_default.png
+      - assets/images/map_terrain.png
 
 flutter_launcher_icons:
   android: true

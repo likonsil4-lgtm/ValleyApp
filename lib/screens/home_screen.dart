@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/services.dart';
 import '../providers/valley_provider.dart';
 import '../widgets/valley_card.dart';
+import '../screens/valley_detail_screen.dart';
 import 'login_screen.dart';
 import '../services/auth_service.dart';
 import '../models/valley_device.dart';
 import 'dart:async';
+import 'dart:math' as math;
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -22,6 +25,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   bool _backPressedOnce = false;
   Timer? _backPressTimer;
   bool _showExitToast = false;
+
+  // Для долгого нажатия на valley на карте
+  bool _isLongPressing = false;
+  String? _longPressedDeviceId;
 
   @override
   void initState() {
@@ -65,6 +72,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     slivers: [
                       SliverToBoxAdapter(child: _buildHeader()),
                       SliverToBoxAdapter(child: _buildConnectionStatus()),
+
+                      // ═══════════════════════════════════════════════════
+                      // НОВОЕ: Карта местности с расположением Valley
+                      // ═══════════════════════════════════════════════════
+                      SliverToBoxAdapter(child: _buildMapSection()),
+
                       SliverPadding(
                         padding: const EdgeInsets.all(16),
                         sliver: Consumer<ValleyProvider>(
@@ -169,20 +182,274 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // НОВЫЙ ВИДЖЕТ: Карта местности с Valley
+  // ═══════════════════════════════════════════════════════════════════════════
+  Widget _buildMapSection() {
+    return Consumer<ValleyProvider>(
+      builder: (context, provider, child) {
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            height: 350, // ← ВЫСОТА КАРТЫ (можно менять)
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.3),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // 1. Фоновая картинка карты
+                  Image.asset(
+                    'assets/images/map_terrain.png', // ← ПУТЬ К КАРТЕ
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      // Fallback если картинки нет
+                      return Container(
+                        color: _isDarkTheme ? const Color(0xFF1a2f3a) : const Color(0xFFe0e5ec),
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.map_outlined,
+                                size: 64,
+                                color: _isDarkTheme ? Colors.white30 : Colors.black26,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Карта местности',
+                                style: TextStyle(
+                                  color: _isDarkTheme ? Colors.white.withOpacity(0.4) : Colors.black38,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Добавьте assets/images/map_terrain.png',
+                                style: TextStyle(
+                                  color: _isDarkTheme ? Colors.white.withOpacity(0.2) : Colors.black.withOpacity(0.2),
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  // 2. Полупрозрачный оверлей для читаемости
+                  Container(
+                    color: (_isDarkTheme ? Colors.black : Colors.white).withOpacity(0.1),
+                  ),
+
+                  // 3. Valley на карте
+                  // ═══════════════════════════════════════════════════════════
+                  // ЗДЕСЬ РАСПОЛАГАЮТСЯ VALLEY - координаты в процентах от размера!
+                  // ═══════════════════════════════════════════════════════════
+
+                  // Valley 1 - левый верхний угол
+                  _buildValleyOnMap(
+                    device: provider.getDevice('valley_1'),
+                    left: 0.22,   // ← 15% от левого края (0.0 - 1.0)
+                    top: 0.71,    // ← 20% от верхнего края (0.0 - 1.0)
+                    size: 79,     // ← Размер круга в пикселях
+                  ),
+
+                  // Valley 2 - правый верхний угол
+                  _buildValleyOnMap(
+                    device: provider.getDevice('valley_2'),
+                    left: 0.50,   // ← 75% от левого края
+                    top: 0.67,    // ← 15% от верхнего края
+                    size: 108,
+                  ),
+
+                  // Valley 3 - центр
+                  _buildValleyOnMap(
+                    device: provider.getDevice('valley_3'),
+                    left: 0.83,   // ← Центр по горизонтали
+                    top: 0.62,    // ← Центр по вертикали
+                    size: 118,     // ← Чуть больше, центральный
+                  ),
+
+                  // Valley 4 - левый нижний
+                  _buildValleyOnMap(
+                    device: provider.getDevice('valley_4'),
+                    left: 0.55,   // ← 20% от левого
+                    top: 0.29,    // ← 75% от верхнего (ниже)
+                    size: 81,
+                  ),
+
+                  // Valley 5 - правый нижний
+                  _buildValleyOnMap(
+                    device: provider.getDevice('valley_5'),
+                    left: 0.79,   // ← 80% от левого
+                    top: 0.23,    // ← 70% от верхнего
+                    size: 75,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // Виджет Valley на карте
+  Widget _buildValleyOnMap({
+    ValleyDevice? device,
+    required double left,    // 0.0 - 1.0 (процент от ширины)
+    required double top,     // 0.0 - 1.0 (процент от высоты)
+    required double size,    // Размер в пикселях
+  }) {
+    if (device == null) return const SizedBox.shrink();
+
+    final isOnline = device.isOnline;
+    final color = isOnline ? Colors.green : Colors.grey;
+    final angle = device.currentAngle;
+
+    return Positioned(
+      left: left * 350 - size / 2,  // Центрируем по точке (350 - ширина карты)
+      top: top * 350 - size / 2,     // Центрируем по точке (350 - высота карты)
+      child: GestureDetector(
+        // Долгое нажатие для перехода
+        onLongPressStart: (_) {
+          setState(() {
+            _isLongPressing = true;
+            _longPressedDeviceId = device.id;
+          });
+          HapticFeedback.heavyImpact(); // Вибрация при удержании
+        },
+        onLongPressEnd: (_) {
+          setState(() {
+            _isLongPressing = false;
+            _longPressedDeviceId = null;
+          });
+          // Переход на детальный экран
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  ValleyDetailScreen(deviceId: device.id),
+              transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+            ),
+          );
+        },
+        // Обычное нажатие - только визуальный фидбек
+        onTapDown: (_) => HapticFeedback.lightImpact(),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withOpacity(0.2),
+            border: Border.all(
+              color: color,
+              width: _longPressedDeviceId == device.id ? 4 : 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(isOnline ? 0.6 : 0.2),
+                blurRadius: isOnline ? 20 : 10,
+                spreadRadius: isOnline ? 5 : 2,
+              ),
+            ],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Фоновый круг (опционально, для видимости)
+              Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color.withOpacity(0.1),
+                ),
+              ),
+
+              // ═══════════════════════════════════════════════════════════
+              // СТРЕЛКА КАК ЧАСЫ - от центра к краю
+              // ═══════════════════════════════════════════════════════════
+              CustomPaint(
+                size: Size(size, size),
+                painter: _ValleyArrowPainter(
+                  angle: angle,
+                  color: color,
+                  strokeWidth: 3,
+                ),
+              ),
+
+              // Центральная точка (ось вращения)
+              Container(
+                width: size * 0.2,
+                height: size * 0.2,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: color,
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.withOpacity(0.5),
+                      blurRadius: 4,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+
+              // Номер Valley (мелкий текст внизу)
+              Positioned(
+                bottom: 4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: (_isDarkTheme ? Colors.black : Colors.white).withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    device.name.replaceAll('Valley ', 'V'),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ОСТАЛЬНЫЕ МЕТОДЫ (без изменений)
+  // ═══════════════════════════════════════════════════════════════════════════
+
   Future<bool> _onWillPop() async {
     if (_backPressedOnce) {
-      // Второе нажатие - выходим
       _backPressTimer?.cancel();
-      return true; // Разрешаем выход
+      return true;
     }
 
-    // Первое нажатие - показываем уведомление
     setState(() {
       _backPressedOnce = true;
       _showExitToast = true;
     });
 
-    // Таймер на 2 секунды для сброса
     _backPressTimer?.cancel();
     _backPressTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) {
@@ -193,7 +460,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       }
     });
 
-    // Не выходим
     return false;
   }
 
@@ -203,7 +469,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Logo and Title
           Row(
             children: [
               Hero(
@@ -258,8 +523,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
             ],
           ),
-
-          // Theme & Logout buttons
           Row(
             children: [
               IconButton(
@@ -397,13 +660,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Refresh button
         ScaleTransition(
           scale: _fabController,
           child: FloatingActionButton.small(
             heroTag: 'refresh',
             onPressed: () {
-              // Request status update from all devices
               final provider = context.read<ValleyProvider>();
               for (int i = 1; i <= 5; i++) {
                 provider.sendCommand('valley_$i', 'PING');
@@ -414,7 +675,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
         const SizedBox(height: 8),
-        // Main FAB
         FloatingActionButton.extended(
           heroTag: 'menu',
           onPressed: () {
@@ -424,15 +684,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               _fabController.forward();
             }
           },
-          backgroundColor: _isDarkTheme
-              ? Colors.cyanAccent
-              : Colors.deepPurple,
+          backgroundColor: _isDarkTheme ? Colors.cyanAccent : Colors.deepPurple,
           icon: AnimatedIcon(
             icon: AnimatedIcons.menu_close,
             progress: _fabController,
             color: Colors.white,
           ),
-          label: Text(
+          label: const Text(
             'Меню',
             style: TextStyle(
               color: Colors.white,
@@ -506,9 +764,54 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     cardColor: Colors.white,
   );
 
+
+
   @override
   void dispose() {
     _fabController.dispose();
     super.dispose();
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PAINTER: Стрелка Valley как стрелка часов
+// ═══════════════════════════════════════════════════════════════════════════
+class _ValleyArrowPainter extends CustomPainter {
+  final double angle;      // 0-360 градусов
+  final Color color;
+  final double strokeWidth;
+
+  _ValleyArrowPainter({
+    required this.angle,
+    required this.color,
+    this.strokeWidth = 3,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - 4;
+
+    final radians = (angle - 90) * math.pi / 180;
+
+    // Конечная точка стрелки (от центра к краю)
+    final endPoint = Offset(
+      center.dx + radius * math.cos(radians),
+      center.dy + radius * math.sin(radians),
+    );
+
+    // Рисуем стрелку
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    // Линия от центра к краю
+    canvas.drawLine(center, endPoint, paint);
+
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
