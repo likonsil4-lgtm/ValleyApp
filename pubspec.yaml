@@ -34,10 +34,6 @@ flutter:
 
 flutter_launcher_icons:
   android: true
-<<<<<<< HEAD
   ios: false
-=======
-  ios: true
->>>>>>> 78bdda1 (FlutterAppv2.3)
   image_path: "assets/icon/app_icon.png"
   adaptive_icon_background: "#FFFFFF"

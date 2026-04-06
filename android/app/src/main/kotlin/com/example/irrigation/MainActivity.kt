@@ -1,4 +1,4 @@
-package com.example.valleyapp
+package com.example.irrigation
 
 import io.flutter.embedding.android.FlutterActivity
 
