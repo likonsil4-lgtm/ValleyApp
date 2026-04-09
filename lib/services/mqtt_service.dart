@@ -171,6 +171,7 @@ class MqttService {
   }
 
   void sendCommand(String deviceId, String command) {
+    // Поддерживаемые команды: STARTCW, STARTCCW, STOP, PING
     print('MQTT: Sending command $command to $deviceId');
     publish('valley/$deviceId/command', command, retain: false);
   }

@@ -532,7 +532,7 @@ class _ValleyDetailScreenState extends State<ValleyDetailScreen>
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Row(
             children: [
@@ -551,110 +551,132 @@ class _ValleyDetailScreenState extends State<ValleyDetailScreen>
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 32),
+
+          // Круглые кнопки направления (по часовой / против часовой)
           Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: _buildControlButton(
-                  icon: Icons.play_arrow,
-                  label: 'СТАРТ',
-                  color: Colors.green,
-                  onPressed: device.isOnline && !device.motorRunning
-                      ? () => provider.sendCommand(device.id, 'START')
-                      : null,
-                ),
+              // ПО ЧАСОВОЙ
+              _buildRoundButton(
+                icon: Icons.rotate_right,
+                label: 'ПО ЧАСОВОЙ',
+                color: Colors.green,
+                onPressed: device.isOnline && !device.motorRunning
+                    ? () => provider.sendCommand(device.id, 'STARTCW')
+                    : null,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildControlButton(
-                  icon: Icons.stop,
-                  label: 'СТОП',
-                  color: Colors.red,
-                  onPressed: device.isOnline && device.motorRunning
-                      ? () => provider.sendCommand(device.id, 'STOP')
-                      : null,
-                ),
+              const SizedBox(width: 40),
+              // ПРОТИВ ЧАСОВОЙ
+              _buildRoundButton(
+                icon: Icons.rotate_left,
+                label: 'ПРОТИВ ЧАСОВОЙ',
+                color: Colors.green,
+                onPressed: device.isOnline && !device.motorRunning
+                    ? () => provider.sendCommand(device.id, 'STARTCCW')
+                    : null,
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          _buildControlButton(
-            icon: Icons.swap_horiz,
-            label: 'СМЕНА НАПРАВЛЕНИЯ',
-            color: _isDarkTheme ? Colors.cyanAccent : Colors.deepPurple,
-            onPressed: device.isOnline
-                ? () => provider.sendCommand(device.id, 'CHANGE_DIRECTION')
+
+          const SizedBox(height: 32),
+
+          // Круглая кнопка СТОП
+          _buildRoundButton(
+            icon: Icons.stop,
+            label: 'СТОП',
+            color: Colors.red,
+            onPressed: device.isOnline && device.motorRunning
+                ? () => provider.sendCommand(device.id, 'STOP')
                 : null,
-            isFullWidth: true,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildControlButton({
+  // Новый метод для круглых кнопок
+  Widget _buildRoundButton({
     required IconData icon,
     required String label,
     required Color color,
     required VoidCallback? onPressed,
-    bool isFullWidth = false,
   }) {
     final isDisabled = onPressed == null;
+    final size = 100.0; // Размер кнопки
 
-    return Container(
-      height: 56,
-      width: isFullWidth ? double.infinity : null,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: isDisabled
-            ? null
-            : LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            color,
-            color.withOpacity(0.8),
-          ],
-        ),
-        color: isDisabled ? Colors.grey.withOpacity(0.3) : null,
-        boxShadow: isDisabled
-            ? null
-            : [
-          BoxShadow(
-            color: color.withOpacity(0.4),
-            blurRadius: 15,
-            spreadRadius: 2,
+    return Column(
+      children: [
+        Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: isDisabled
+                ? null
+                : LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                color.withOpacity(0.8),
+                color,
+                color.withOpacity(0.6),
+              ],
+              stops: const [0.0, 0.5, 1.0],
+            ),
+            color: isDisabled ? Colors.grey.withOpacity(0.3) : null,
+            boxShadow: isDisabled
+                ? null
+                : [
+              BoxShadow(
+                color: color.withOpacity(0.4),
+                blurRadius: 15,
+                spreadRadius: 3,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.white.withOpacity(0.3),
+                blurRadius: 5,
+                spreadRadius: -2,
+                offset: const Offset(-2, -2),
+              ),
+            ],
+            border: Border.all(
+              color: isDisabled
+                  ? Colors.grey.withOpacity(0.2)
+                  : Colors.white.withOpacity(0.3),
+              width: 2,
+            ),
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onPressed,
-          child: Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
+          child: Material(
+            color: Colors.transparent,
+            shape: const CircleBorder(),
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: onPressed,
+              child: Center(
+                child: Icon(
                   icon,
                   color: isDisabled ? Colors.grey : Colors.white,
-                  size: 24,
+                  size: 40,
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: isDisabled ? Colors.grey : Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
-      ),
+        const SizedBox(height: 12),
+        Text(
+          label,
+          style: TextStyle(
+            color: isDisabled
+                ? Colors.grey
+                : (_isDarkTheme ? Colors.white : Colors.black87),
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
